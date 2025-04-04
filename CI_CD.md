@@ -1,145 +1,80 @@
 # CI/CD Pipeline Configuration
 
-This guide outlines our organization's standards for Continuous Integration and Continuous Deployment (CI/CD) using GitHub Actions.
-
-> 📌 **Return to**: [Main Development Guide](README.md)
+This guide outlines our CI/CD standards using GitHub Actions with workspace-based configuration.
 
 ## Quick Start
 
-1. Create a `.github/workflows` directory in your repository
-2. Add workflow files for CI and CD
+1. Create `.github/workflows` directory in your repository
+2. Add reusable workflow files for CI and CD
 3. Configure GitHub repository secrets
-4. Push your changes to trigger the workflows
+4. Push changes to trigger workflows
 
 ## Overview
 
-Our CI/CD process follows this workflow:
-
-1. Developers push code to feature branches
-2. GitHub Actions runs CI checks on pull requests
-3. After PR approval and merge to `development`, CD pipeline deploys to staging
-4. After validation in staging, a PR from `development` to `main` is created
-5. After PR approval and merge to `main`, CD pipeline deploys to production
-
-This approach was adopted after a series of production incidents caused by inadequate testing and validation. Since implementation, we've reduced deployment failures by 78% while increasing deployment frequency.
+```
+feature branch → PR → CI checks → merge to dev → deploy to staging → PR to main → deploy to production
+```
 
 ## Workflow Files
 
-Each repository should have at least two workflow files:
+Each repository should include:
 
-- `ci.yml` - For continuous integration (linting, testing, etc.)
-- `cd.yml` - For continuous deployment (deployment to environments)
+- `.github/workflows/ci.yml` - Define CI pipeline
+- `.github/workflows/cd.yml` - Define CD pipeline
+- `.github/workflows/reusable.yml` - Reusable workflow components
 
-### Directory Structure
+## Workspace-Based Configuration
 
-```
-.github/
-└── workflows/
-    ├── ci.yml
-    └── cd.yml
-```
-
-## CI Workflow Configuration
-
-### Python Projects
-
-Create `.github/workflows/ci.yml`:
+Instead of duplicating code for different environments, use workspace variables:
 
 ```yaml
-name: CI
+# .github/workflows/reusable.yml
+name: Reusable Workflows
 
 on:
-   pull_request:
-      branches: [development, main]
-   push:
-      branches: [development, main]
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      action:
+        required: true
+        type: string
 
 jobs:
-   lint:
-      name: Lint
-      runs-on: ubuntu-latest
-      steps:
-         - uses: actions/checkout@v4
+  test:
+    name: Test
+    if: inputs.action == 'test'
+    runs-on: ubuntu-latest
+    steps:
+      # Common test steps across environments
+      # ...
 
-         - name: Set up Python
-           uses: actions/setup-python@v5
-           with:
-              python-version: '3.12'
-              cache: 'pip'
-
-         - name: Install Poetry
-           run: |
-              curl -sSL https://install.python-poetry.org | python3 -
-              echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-         - name: Install dependencies
-           run: |
-              poetry install
-
-         - name: Run linters
-           run: |
-              poetry run black --check .
-              poetry run isort --check-only --profile black .
-              poetry run flake8 .
-              poetry run mypy .
-
-   test:
-      name: Test
-      runs-on: ubuntu-latest
-      needs: lint
-      steps:
-         - uses: actions/checkout@v4
-
-         - name: Set up Python
-           uses: actions/setup-python@v5
-           with:
-              python-version: '3.12'
-              cache: 'pip'
-
-         - name: Install Poetry
-           run: |
-              curl -sSL https://install.python-poetry.org | python3 -
-              echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-         - name: Install dependencies
-           run: |
-              poetry install
-
-         - name: Run tests
-           run: |
-              poetry run pytest --cov=app --cov-report=xml
-
-         - name: Upload coverage to Codecov
-           uses: codecov/codecov-action@v4
-           with:
-              file: ./coverage.xml
-              fail_ci_if_error: true
-              
-   security:
-      name: Security Scan
-      runs-on: ubuntu-latest
-      steps:
-         - uses: actions/checkout@v4
-         
-         - name: Run Bandit security scan
-           run: |
-              pip install bandit
-              bandit -r app/ -f json -o bandit-results.json
-              
-         - name: Run dependency scan
-           uses: snyk/actions/python@master
-           continue-on-error: true
-           with:
-             args: --severity-threshold=high
-           env:
-             SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+  deploy:
+    name: Deploy (${{ inputs.environment }})
+    if: inputs.action == 'deploy'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      # Environment-specific configuration loaded based on workspace
+      - name: Load environment config
+        id: env_config
+        run: |
+          source .github/config/${{ inputs.environment }}.sh
+          echo "ECR_REPOSITORY=$ECR_REPOSITORY" >> $GITHUB_OUTPUT
+          
+      # Rest of deployment steps
+      # ...
 ```
 
-### Next.js Projects
+## Usage Examples
 
-Create `.github/workflows/ci.yml`:
+### Python/FastAPI Projects
 
 ```yaml
+# .github/workflows/ci.yml
 name: CI
 
 on:
@@ -154,737 +89,99 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      
-      - name: Install dependencies
-        run: npm ci
-      
-      - name: Run linters
-        run: |
-          npm run lint
-  
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    needs: lint
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      
-      - name: Install dependencies
-        run: npm ci
-      
-      - name: Run tests
-        run: npm test
-      
-      - name: Build
-        run: npm run build
-        
-  security:
-    name: Security Scan
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Run dependency scan
-        uses: snyk/actions/node@master
-        continue-on-error: true
-        with:
-          args: --severity-threshold=high
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-```
-
-### Express Projects
-
-Create `.github/workflows/ci.yml`:
-
-```yaml
-name: CI
-
-on:
-  pull_request:
-    branches: [development, main]
-  push:
-    branches: [development, main]
-
-jobs:
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      
-      - name: Install dependencies
-        run: npm ci
-      
-      - name: Run linters
-        run: |
-          npm run lint
-  
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    needs: lint
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      
-      - name: Install dependencies
-        run: npm ci
-      
-      - name: Run tests
-        run: npm test
-      
-      - name: Build
-        run: npm run build
-```
-
-## CD Workflow Configuration
-
-### Python (FastAPI) Projects
-
-Create `.github/workflows/cd.yml`:
-
-```yaml
-name: CD
-
-on:
-  push:
-    branches:
-      - development
-      - main
-
-jobs:
-  deploy:
-    name: Deploy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set environment variables
-        run: |
-          if [[ $GITHUB_REF == 'refs/heads/main' ]]; then
-            echo "ENVIRONMENT=prod" >> $GITHUB_ENV
-            echo "ECR_REPOSITORY=${{ secrets.PROD_ECR_REPOSITORY }}" >> $GITHUB_ENV
-          else
-            echo "ENVIRONMENT=dev" >> $GITHUB_ENV
-            echo "ECR_REPOSITORY=${{ secrets.DEV_ECR_REPOSITORY }}" >> $GITHUB_ENV
-          fi
-      
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-      
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-      
-      - name: Build, tag, and push image to Amazon ECR
-        id: build-image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
-      
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.7.5
-      
-      - name: Terraform Init
-        run: |
-          cd infrastructure/environments/$ENVIRONMENT
-          terraform init
-      
-      - name: Terraform Apply
-        run: |
-          cd infrastructure/environments/$ENVIRONMENT
-          terraform apply -auto-approve -var="container_image=${{ steps.build-image.outputs.image }}"
-      
-      - name: Run Database Migrations
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          if [[ $ENVIRONMENT == 'dev' ]]; then
-            # Set up Python
-            python -m pip install --upgrade pip
-            pip install poetry
-            poetry config virtualenvs.create false
-            poetry install
-            
-            # Run migrations
-            alembic upgrade head
-          else
-            # For production, we use a dedicated migration job
-            aws lambda invoke --function-name $ENVIRONMENT-db-migrate --payload '{}' response.json
-          fi
-      
-      - name: Send notification
-        if: always()
-        uses: rtCamp/action-slack-notify@v2
-        env:
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
-          SLACK_CHANNEL: deployments
-          SLACK_COLOR: ${{ job.status }}
-          SLACK_TITLE: Deployment to ${{ env.ENVIRONMENT }}
-          SLACK_MESSAGE: ${{ job.status == 'success' && 'Deployment succeeded! 🚀' || 'Deployment failed! 🔥' }}
-```
-
-### Next.js Projects
-
-Create `.github/workflows/cd.yml`:
-
-```yaml
-name: CD
-
-on:
-  push:
-    branches:
-      - development
-      - main
-
-jobs:
-  deploy:
-    name: Deploy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set environment
-        run: |
-          if [[ $GITHUB_REF == 'refs/heads/main' ]]; then
-            echo "ENVIRONMENT=production" >> $GITHUB_ENV
-          else
-            echo "ENVIRONMENT=preview" >> $GITHUB_ENV
-          fi
-      
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      
-      - name: Install dependencies
-        run: npm ci
-      
-      - name: Build
-        run: npm run build
-      
-      - name: Deploy to Vercel
-        uses: amondnet/vercel-action@v25
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          vercel-args: '--${{ env.ENVIRONMENT }}'
-          working-directory: ./
-      
-      - name: Run Lighthouse CI
-        uses: treosh/lighthouse-ci-action@v9
-        with:
-          uploadArtifacts: true
-          temporaryPublicStorage: true
-          urls: |
-            https://${{ env.ENVIRONMENT == 'production' && secrets.PRODUCTION_URL || secrets.PREVIEW_URL }}
-          budgetPath: ./lighthouse-budget.json
-      
-      - name: Send notification
-        if: always()
-        uses: rtCamp/action-slack-notify@v2
-        env:
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
-          SLACK_CHANNEL: deployments
-          SLACK_COLOR: ${{ job.status }}
-          SLACK_TITLE: Deployment to ${{ env.ENVIRONMENT }}
-          SLACK_MESSAGE: ${{ job.status == 'success' && 'Deployment succeeded! 🚀' || 'Deployment failed! 🔥' }}
-```
-
-### Express Projects
-
-Create `.github/workflows/cd.yml`:
-
-```yaml
-name: CD
-
-on:
-  push:
-    branches:
-      - development
-      - main
-
-jobs:
-  deploy:
-    name: Deploy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set environment variables
-        run: |
-          if [[ $GITHUB_REF == 'refs/heads/main' ]]; then
-            echo "ENVIRONMENT=prod" >> $GITHUB_ENV
-            echo "ECR_REPOSITORY=${{ secrets.PROD_ECR_REPOSITORY }}" >> $GITHUB_ENV
-          else
-            echo "ENVIRONMENT=dev" >> $GITHUB_ENV
-            echo "ECR_REPOSITORY=${{ secrets.DEV_ECR_REPOSITORY }}" >> $GITHUB_ENV
-          fi
-      
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-      
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-      
-      - name: Build, tag, and push image to Amazon ECR
-        id: build-image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
-      
-      - name: Deploy to ECS
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
-        with:
-          task-definition: infrastructure/task-definition.json
-          container-name: app
-          image: ${{ steps.build-image.outputs.image }}
-          service: ${{ env.ENVIRONMENT }}-service
-          cluster: ${{ env.ENVIRONMENT }}-cluster
-      
-      - name: Verify Deployment
-        run: |
-          # Wait for deployment to complete
-          aws ecs wait services-stable --cluster ${{ env.ENVIRONMENT }}-cluster --services ${{ env.ENVIRONMENT }}-service
-          
-          # Get the load balancer URL
-          LB_URL=$(aws ecs describe-services --cluster ${{ env.ENVIRONMENT }}-cluster --services ${{ env.ENVIRONMENT }}-service --query 'services[0].loadBalancers[0].targetGroupArn' --output text | xargs -I {} aws elbv2 describe-target-groups --target-group-arns {} --query 'TargetGroups[0].LoadBalancerArns[0]' --output text | xargs -I {} aws elbv2 describe-load-balancers --load-balancer-arns {} --query 'LoadBalancers[0].DNSName' --output text)
-          
-          # Check that the service is responding
-          curl --retry 10 --retry-delay 5 --retry-connrefused http://$LB_URL/health
-      
-      - name: Send notification
-        if: always()
-        uses: rtCamp/action-slack-notify@v2
-        env:
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
-          SLACK_CHANNEL: deployments
-          SLACK_COLOR: ${{ job.status }}
-          SLACK_TITLE: Deployment to ${{ env.ENVIRONMENT }}
-          SLACK_MESSAGE: ${{ job.status == 'success' && 'Deployment succeeded! 🚀' || 'Deployment failed! 🔥' }}
-```
-
-## Database Migration Strategy
-
-One of our most painful lessons came from a production outage caused by incompatible database migrations. We now follow these practices:
-
-### Migration Best Practices
-
-1. **Backward Compatible Migrations**: Design migrations that work with both old and new code
-2. **Separate Deployment Steps**:
-   - Step 1: Run non-destructive migrations (add columns, tables)
-   - Step 2: Deploy new code that uses new schema
-   - Step 3: Run cleanup migrations (remove old columns, tables)
-3. **Automated Testing**: Test migrations against production-like data
-4. **Rollback Plan**: Every migration must have a tested rollback procedure
-
-### Migration Workflow
-
-```mermaid
-flowchart TD
-    A[Write Migration] --> B[Test Locally]
-    B --> C[Review Migration]
-    C --> D[Merge to Development]
-    D --> E[Apply to Staging]
-    E --> F[Verify in Staging]
-    F --> G[Merge to Main]
-    G --> H[Apply to Production]
-    H --> I[Verify in Production]
-```
-
-### Database Migration CI/CD
-
-For Python/Alembic projects:
-
-```yaml
-# Add to ci.yml
-jobs:
-  test-migrations:
-    name: Test Migrations
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:14
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_USER: postgres
-          POSTGRES_DB: test_db
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          
-      - name: Install dependencies
-        run: |
-          pip install poetry
-          poetry config virtualenvs.create false
-          poetry install
-          
-      - name: Run migration tests
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
-        run: |
-          # Apply migrations
-          alembic upgrade head
-          
-          # Verify migrations
-          python -m pytest tests/migrations/
-          
-          # Test rollback
-          alembic downgrade -1
-          alembic upgrade head
+      - run: pip install poetry
+      - run: poetry install
+      - run: poetry run black --check .
+      # Other linting steps...
+
+  test:
+    uses: ./.github/workflows/reusable.yml
+    with:
+      environment: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
+      action: test
+```
+
+```yaml
+# .github/workflows/cd.yml
+name: CD
+
+on:
+  push:
+    branches: [development, main]
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/reusable.yml
+    with:
+      environment: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
+      action: deploy
+    secrets: inherit
+```
+
+## Environment Configuration
+
+Store environment-specific configuration in separate files:
+
+```sh
+# .github/config/dev.sh
+export ECR_REPOSITORY=dev-repository
+export AWS_REGION=us-east-1
+export CLUSTER_NAME=dev-cluster
+```
+
+```sh
+# .github/config/prod.sh
+export ECR_REPOSITORY=prod-repository
+export AWS_REGION=us-east-1
+export CLUSTER_NAME=prod-cluster
 ```
 
 ## GitHub Repository Secrets
 
-Set up the following secrets in your GitHub repository:
+Configure secrets per environment:
 
-### AWS Deployment
+1. Go to repository settings > "Environments" > Create environments for "dev" and "prod"
+2. Add environment-specific secrets to each environment
+3. Add general secrets at the repository level
 
-- `AWS_ACCESS_KEY_ID` - AWS access key ID
-- `AWS_SECRET_ACCESS_KEY` - AWS secret access key
-- `DEV_ECR_REPOSITORY` - Development ECR repository name
-- `PROD_ECR_REPOSITORY` - Production ECR repository name
+## Database Migration Strategy
 
-### Vercel Deployment
+For zero-downtime database changes:
 
-- `VERCEL_TOKEN` - Vercel API token
-- `VERCEL_ORG_ID` - Vercel organization ID
-- `VERCEL_PROJECT_ID` - Vercel project ID
-- `PREVIEW_URL` - Preview environment URL
-- `PRODUCTION_URL` - Production environment URL
+1. Only add new tables/columns in the first deployment
+2. Deploy code that works with both old and new schema
+3. Remove deprecated tables/columns after transition period
 
-### Database Connections
+## CI Best Practices
 
-- `DEV_DATABASE_URL` - Development database connection string
-- `PROD_DATABASE_URL` - Production database connection string
+- Run linting, security scanning, and tests in parallel
+- Add coverage thresholds to enforce testing standards
+- Implement branch protection rules to enforce checks
 
-### Notifications
+## CD Best Practices
 
-- `SLACK_WEBHOOK` - Slack webhook URL for notifications
+- Use deployment concurrency limits to prevent conflicts
+- Implement canary or blue-green deployments for critical systems
+- Add post-deployment verification steps
 
-## CI/CD Best Practices
+## Secret Management
 
-### Incremental Deployment
-
-1. **Development Environment**:
-   - Automatically deployed on every merge to `development`
-   - Used for testing new features and bug fixes
-
-2. **Staging Environment**:
-   - Deployed after QA approval in development
-   - Mirrors production environment for final testing
-
-3. **Production Environment**:
-   - Deployed after approval and merge to `main`
-   - Requires manual approval for critical changes
-
-One of our teams experimented with direct-to-production deployments but reverted after several incidents. The staging validation step caught approximately 15% of issues that would have impacted production.
-
-### Environment Variables
-
-Store environment-specific variables as GitHub repository secrets:
-
-1. Create environment variables in GitHub:
-   - Go to repository settings > "Secrets and variables" > "Actions"
-   - Add new repository secrets
-
-2. Reference in workflows:
-   ```yaml
-   env:
-     API_URL: ${{ secrets.API_URL }}
-   ```
-
-### Caching Dependencies
-
-Cache dependencies to speed up builds:
+Export environment-specific secrets in workflows:
 
 ```yaml
-# For npm
-- name: Cache dependencies
-  uses: actions/cache@v3
-  with:
-    path: ~/.npm
-    key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-    restore-keys: |
-      ${{ runner.os }}-node-
-
-# For poetry
-- name: Cache Poetry dependencies
-  uses: actions/cache@v3
-  with:
-    path: ~/.cache/pypoetry
-    key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
-    restore-keys: |
-      ${{ runner.os }}-poetry-
+steps:
+  - name: Configure AWS credentials
+    uses: aws-actions/configure-aws-credentials@v4
+    with:
+      role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+      aws-region: ${{ env.AWS_REGION }}
 ```
-
-We saw build times decrease by 60% after implementing proper caching strategies.
-
-## Continuous Integration Practices
-
-### Code Quality Checks
-
-1. **Linting**:
-   - Run linters to enforce code style
-   - Fail the build on linting errors
-
-2. **Testing**:
-   - Run unit tests for all code changes
-   - Run integration tests for API changes
-
-3. **Code Coverage**:
-   - Set minimum code coverage requirements
-   - Upload coverage reports to Codecov or SonarQube
-
-### Security Scanning
-
-1. **Dependency Scanning**:
-   ```yaml
-   - name: Run dependency security scan
-     uses: snyk/actions/node@master
-     with:
-       args: --severity-threshold=high
-     env:
-       SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-   ```
-
-2. **SAST (Static Application Security Testing)**:
-   ```yaml
-   - name: Run SAST scan
-     uses: github/codeql-action/analyze@v2
-   ```
-
-3. **Secret Scanning**:
-   ```yaml
-   - name: Check for hardcoded secrets
-     uses: gitleaks/gitleaks-action@v2
-     with:
-       config-path: .gitleaks.toml
-   ```
-
-## Continuous Deployment Practices
-
-### Deployment Strategies
-
-1. **Blue-Green Deployment**:
-   - Deploy new version alongside old version
-   - Switch traffic after validation
-
-   Our payment processing service uses blue-green deployments to ensure zero-downtime updates.
-
-2. **Canary Deployment**:
-   - Gradually roll out to a small percentage of users
-   - Increase percentage as confidence grows
-
-   We use canary deployments for our high-volume customer API to catch issues before they affect all users.
-
-3. **Feature Flags**:
-   - Deploy features behind toggles
-   - Control feature availability without redeployment
-
-   Our frontend applications leverage feature flags for all major features, allowing us to deploy daily while controlling when features are visible to users.
-
-### Deployment Automation
-
-Automated checks before deployment:
-
-```yaml
-- name: Automated Pre-Deployment Checks
-  run: |
-    # Check database migrations
-    alembic check
-    
-    # Verify environment variables
-    python scripts/verify_env_vars.py
-    
-    # Check for required resources
-    python scripts/check_resources.py
-```
-
-### Rollback Procedures
-
-1. **Automated Rollback**:
-   ```yaml
-   - name: Rollback on failure
-     if: failure()
-     run: |
-       aws ecs update-service --cluster $CLUSTER --service $SERVICE --task-definition $PREVIOUS_TASK_DEF
-   ```
-
-2. **Manual Rollback**:
-   - Provide clear instructions for manual rollback
-   - Train team members on rollback procedures
-
-After a particularly painful manual rollback that took over an hour due to confusion about the correct procedure, we now document and practice rollbacks regularly.
-
-## Monitoring Deployments
-
-### Health Checks
-
-```yaml
-- name: Verify deployment
-  run: |
-    curl --retry 10 --retry-delay 5 --retry-connrefused https://api.example.com/health
-```
-
-### Deployment Notifications
-
-```yaml
-- name: Send deployment notification
-  uses: rtCamp/action-slack-notify@v2
-  env:
-    SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
-    SLACK_CHANNEL: deployments
-    SLACK_COLOR: ${{ job.status }}
-    SLACK_TITLE: Deployment to ${{ env.ENVIRONMENT }}
-    SLACK_MESSAGE: ${{ job.status == 'success' && 'Deployment succeeded! 🚀' || 'Deployment failed! 🔥' }}
-```
-
-### Deployment Metrics
-
-Track these key metrics for each deployment:
-
-- **Time to Deploy**: How long deployments take
-- **Success Rate**: Percentage of successful deployments
-- **Rollback Rate**: Percentage of deployments requiring rollback
-- **Error Rate Change**: Change in application error rate after deployment
-- **Response Time Change**: Change in application response time after deployment
-
-## Troubleshooting
-
-### Common CI Issues
-
-1. **Build Failures**:
-   - Check dependency issues
-   - Verify environment configuration
-   - Review test failures
-
-2. **Timeout Issues**:
-   - Optimize build steps
-   - Use caching for dependencies
-
-3. **Permission Issues**:
-   - Check GitHub token permissions
-   - Verify AWS IAM permissions
-
-### Common CD Issues
-
-1. **Deployment Failures**:
-   - Check environment variables
-   - Verify infrastructure state
-   - Review application logs
-
-2. **Configuration Issues**:
-   - Ensure environment-specific configuration is correct
-   - Check secret management
-
-3. **Rollback Failures**:
-   - Test rollback procedures regularly
-   - Document rollback steps
-
-## Lessons From Production
-
-### Case Study: Database Migration Failure
-
-**Problem**: A migration that dropped a column caused an outage when deployed before the code was fully updated.
-
-**Solution**:
-1. Split migrations into small, reversible steps
-2. Added automated testing for migrations
-3. Implemented a database migration "safe mode" that only allows additive changes
-4. Created a separate workflow for schema changes
-
-### Case Study: Incomplete Environment Variables
-
-**Problem**: Deployments to production were failing due to missing environment variables.
-
-**Solution**:
-1. Created a pre-deployment script that validates all required environment variables
-2. Generated environment variable templates from code
-3. Added environment comparison tools to highlight differences
-4. Implemented secrets rotation and validation
-
-### Case Study: Slow CI/CD Pipeline
-
-**Problem**: Our CI/CD pipeline was taking over 30 minutes, slowing down development.
-
-**Solution**:
-1. Implemented dependency caching
-2. Parallelized test execution
-3. Used Docker layer caching for builds
-4. Removed redundant steps
-5. Optimized test suites
-
-The result was a 70% reduction in pipeline execution time.
-
-## Resources
-
-- [GitHub Actions Documentation](https://docs.github.com/en/actions)
-- [AWS ECS Deployment Guide](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/deployment-type-external.html)
-- [Vercel Deployment Documentation](https://vercel.com/docs/concepts/deployments/overview)
 
 ## Version Management
 
-GitHub Actions version updates are handled as follows:
-- We maintain compatibility with the latest stable GitHub Actions releases
-- New projects should always use the current standardized versions
-- Existing projects should update to new GitHub Actions versions within 3 months of their release
-- We regularly check for available updates to GitHub Actions
+- Use explicit versions for all GitHub Actions
+- Avoid using `@master` or `@main` tags
+- Automate dependency updates with Dependabot
