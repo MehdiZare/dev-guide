@@ -1,57 +1,81 @@
-# Infrastructure as Code (IaC) with Terraform
+# Infrastructure as Code (IaC)
 
-This guide outlines our organization's standards for infrastructure management using Terraform.
+This guide outlines our organization's standards for infrastructure management using Terraform or Pulumi.
 
 > 📌 **Return to**: [Main Development Guide](../README.md)
 
 ## Quick Start
 
 ```bash
-# 1. Install Terraform
-brew install tfenv
-tfenv install 1.7.5
-tfenv use 1.7.5
+# For Terraform projects
+# Install Terraform on macOS
+brew install terraform
 
-# 2. Clone infrastructure repository
+# Clone infrastructure repository
 git clone git@github.com:organization/infrastructure.git
 cd infrastructure
 
-# 3. Navigate to environment directory
+# Navigate to environment directory
 cd environments/dev
 
-# 4. Initialize Terraform
+# Initialize Terraform
 terraform init
 
-# 5. Plan changes
+# Plan changes
 terraform plan -var-file=terraform.tfvars -out=tfplan
 
-# 6. Apply changes
+# Apply changes
 terraform apply tfplan
+
+# For Pulumi projects
+# Install Pulumi on macOS
+brew install pulumi
+
+# Navigate to Pulumi project directory
+cd pulumi-project
+
+# Preview changes
+pulumi preview
+
+# Apply changes
+pulumi up
 ```
+
+## Technology Choice
+
+For each project, choose either Terraform or Pulumi based on the following considerations:
+
+- **Terraform**: Ideal for infrastructure teams familiar with HCL, or for projects where declarative configuration is preferred
+- **Pulumi**: Better suited for teams with strong programming skills in TypeScript/JavaScript, Python, Go, or C#, or when complex logic is required
+
+Choose one technology per project - do not mix Terraform and Pulumi within the same infrastructure project.
 
 ## Environment Setup
 
 ### Terraform Installation
 
-We use `tfenv` to manage Terraform versions:
+```bash
+# macOS
+brew install terraform
+```
+
+For other platforms, refer to the [official Terraform installation documentation](https://developer.hashicorp.com/terraform/downloads).
+
+Use Git for version pinning by committing the Terraform lock file (`.terraform.lock.hcl`) to your repository, which ensures consistent provider versions across all environments and team members.
+
+### Pulumi Installation
 
 ```bash
-# Install tfenv
-brew install tfenv
-
-# Install Terraform version
-tfenv install 1.7.5
-
-# Set as default version
-tfenv use 1.7.5
+# macOS
+brew install pulumi
 ```
+
+For other platforms, refer to the [official Pulumi installation documentation](https://www.pulumi.com/docs/install/).
 
 ### AWS CLI Configuration
 
-For AWS deployments:
-
 ```bash
-# Install AWS CLI
+# Install AWS CLI on macOS
 brew install awscli
 
 # Configure AWS credentials
@@ -60,56 +84,63 @@ aws configure
 
 ## Repository Structure
 
-Standard Terraform project structure:
+### Terraform Project Structure
 
 ```
 infrastructure/
-├── environments/              # Environment-specific configs
-│   ├── dev/
-│   │   ├── main.tf            # Main configuration
-│   │   ├── variables.tf       # Variable definitions
-│   │   ├── terraform.tfvars   # Variable values (gitignored)
-│   │   ├── outputs.tf         # Output definitions
-│   │   └── backend.tf         # Backend configuration
-│   └── prod/
-│       ├── main.tf
-│       ├── variables.tf
-│       ├── terraform.tfvars
-│       ├── outputs.tf
-│       └── backend.tf
 ├── modules/                   # Reusable modules
 │   ├── networking/            # Networking resources
-│   │   ├── main.tf
-│   │   ├── variables.tf
-│   │   └── outputs.tf
-│   ├── compute/              # Compute resources
-│   │   ├── main.tf
-│   │   ├── variables.tf
-│   │   └── outputs.tf
-│   ├── database/             # Database resources
-│   │   ├── main.tf
-│   │   ├── variables.tf
-│   │   └── outputs.tf
-│   └── security/             # Security resources
-│       ├── main.tf
-│       ├── variables.tf
-│       └── outputs.tf
+│   ├── compute/               # Compute resources
+│   ├── database/              # Database resources
+│   └── security/              # Security resources
+├── envs/                      # Environment configuration
+│   ├── common.tfvars          # Common variables across environments
+│   ├── dev.tfvars             # Dev-specific variables
+│   ├── staging.tfvars         # Staging-specific variables
+│   ├── prod.tfvars            # Production-specific variables
+├── main.tf                    # Main configuration
+├── variables.tf               # Variable definitions
+├── outputs.tf                 # Output definitions
+├── providers.tf               # Provider configuration
+├── versions.tf                # Version constraints
+├── backend.tf                 # Backend configuration
+├── .gitignore                 # Git ignore file
+└── README.md                  # Documentation
+```
+
+### Pulumi Project Structure
+
+```
+infrastructure/
+├── src/                      # Shared code and utilities
+├── modules/                  # Reusable Pulumi components
+│   ├── networking/
+│   ├── compute/
+│   ├── database/
+│   └── security/
+├── Pulumi.yaml               # Project configuration
+├── Pulumi.dev.yaml           # Dev stack configuration
+├── Pulumi.staging.yaml       # Staging stack configuration
+├── Pulumi.prod.yaml          # Production stack configuration
+├── index.ts                  # Main program 
+├── package.json              # Dependencies (for TypeScript)
+├── tsconfig.json             # TypeScript configuration
 ├── .gitignore                # Git ignore file
 └── README.md                 # Documentation
 ```
 
 ## State Management
 
-### Remote State Configuration
+### Terraform Remote State Configuration
 
 Store state in a remote backend:
 
 ```hcl
-# environments/dev/backend.tf
+# backend.tf
 terraform {
   backend "s3" {
     bucket         = "organization-terraform-state"
-    key            = "projects/project-name/dev/terraform.tfstate"
+    key            = "projects/project-name/${terraform.workspace}/terraform.tfstate"
     region         = "us-east-1"
     dynamodb_table = "terraform-state-lock"
     encrypt        = true
@@ -117,9 +148,18 @@ terraform {
 }
 ```
 
+### Pulumi State Management
+
+Pulumi automatically manages state in the Pulumi Cloud by default, but you can also configure it to use a self-managed backend:
+
+```bash
+# Configure Pulumi to use AWS S3 for state storage
+pulumi login s3://organization-pulumi-state
+```
+
 ### State Locking
 
-Use DynamoDB for state locking:
+Use DynamoDB for Terraform state locking:
 
 ```hcl
 # Create the DynamoDB table for state locking
@@ -133,6 +173,79 @@ resource "aws_dynamodb_table" "terraform_state_lock" {
     type = "S"
   }
 }
+```
+
+## Using Workspaces
+
+### Terraform Workspaces
+
+Leverage Terraform workspaces to reduce code duplication across environments:
+
+```bash
+# List workspaces
+terraform workspace list
+
+# Create new workspaces for each environment
+terraform workspace new dev
+terraform workspace new staging
+terraform workspace new prod
+
+# Select a workspace
+terraform workspace select dev
+```
+
+Use workspace-specific variables in your configuration:
+
+```hcl
+# main.tf
+locals {
+  environment = terraform.workspace
+
+  # Environment-specific configurations
+  env_configs = {
+    dev = {
+      instance_type = "t3.small"
+      instance_count = 1
+    }
+    staging = {
+      instance_type = "t3.medium"
+      instance_count = 2
+    }
+    prod = {
+      instance_type = "t3.large"
+      instance_count = 3
+    }
+  }
+
+  # Use the current workspace's configuration or default to dev
+  config = lookup(local.env_configs, local.environment, local.env_configs.dev)
+}
+
+module "compute" {
+  source = "./modules/compute"
+  
+  instance_type = local.config.instance_type
+  instance_count = local.config.instance_count
+  environment = local.environment
+}
+```
+
+### Pulumi Stacks
+
+Use Pulumi stacks (similar to Terraform workspaces) for environment separation:
+
+```bash
+# Create stacks for different environments
+pulumi stack init dev
+pulumi stack init staging
+pulumi stack init prod
+
+# Select a stack
+pulumi stack select dev
+
+# Set stack-specific configuration
+pulumi config set instanceType t3.small
+pulumi config set instanceCount 1
 ```
 
 ## Module Organization
@@ -194,80 +307,75 @@ resource "aws_subnet" "private" {
 }
 ```
 
-Example `modules/networking/vpc/variables.tf`:
+### Pulumi Component Structure
 
-```hcl
-variable "name" {
-  description = "Name of the VPC"
-  type        = string
+For Pulumi, create reusable components:
+
+```typescript
+// modules/networking/vpc.ts
+import * as pulumi from "@pulumi/pulumi";
+import * as aws from "@pulumi/aws";
+
+export interface VpcArgs {
+    name: string;
+    cidrBlock: string;
+    publicSubnetCidrs: string[];
+    privateSubnetCidrs: string[];
+    availabilityZones: string[];
+    tags?: {[key: string]: string};
 }
 
-variable "cidr_block" {
-  description = "CIDR block for the VPC"
-  type        = string
-}
+export class Vpc extends pulumi.ComponentResource {
+    public vpc: aws.ec2.Vpc;
+    public publicSubnets: aws.ec2.Subnet[];
+    public privateSubnets: aws.ec2.Subnet[];
 
-variable "public_subnet_cidrs" {
-  description = "CIDR blocks for public subnets"
-  type        = list(string)
-}
+    constructor(name: string, args: VpcArgs, opts?: pulumi.ComponentResourceOptions) {
+        super("custom:networking:Vpc", name, {}, opts);
 
-variable "private_subnet_cidrs" {
-  description = "CIDR blocks for private subnets"
-  type        = list(string)
-}
+        this.vpc = new aws.ec2.Vpc(name, {
+            cidrBlock: args.cidrBlock,
+            enableDnsSupport: true,
+            enableDnsHostnames: true,
+            tags: {
+                Name: args.name,
+                ...args.tags,
+            },
+        }, { parent: this });
 
-variable "availability_zones" {
-  description = "Availability zones for subnets"
-  type        = list(string)
-}
+        this.publicSubnets = args.publicSubnetCidrs.map((cidr, i) => {
+            const az = args.availabilityZones[i % args.availabilityZones.length];
+            return new aws.ec2.Subnet(`${name}-public-${i + 1}`, {
+                vpcId: this.vpc.id,
+                cidrBlock: cidr,
+                availabilityZone: az,
+                mapPublicIpOnLaunch: true,
+                tags: {
+                    Name: `${args.name}-public-${i + 1}`,
+                    ...args.tags,
+                },
+            }, { parent: this });
+        });
 
-variable "tags" {
-  description = "Tags to apply to resources"
-  type        = map(string)
-  default     = {}
-}
-```
+        this.privateSubnets = args.privateSubnetCidrs.map((cidr, i) => {
+            const az = args.availabilityZones[i % args.availabilityZones.length];
+            return new aws.ec2.Subnet(`${name}-private-${i + 1}`, {
+                vpcId: this.vpc.id,
+                cidrBlock: cidr,
+                availabilityZone: az,
+                tags: {
+                    Name: `${args.name}-private-${i + 1}`,
+                    ...args.tags,
+                },
+            }, { parent: this });
+        });
 
-Example `modules/networking/vpc/outputs.tf`:
-
-```hcl
-output "vpc_id" {
-  description = "ID of the VPC"
-  value       = aws_vpc.main.id
-}
-
-output "public_subnet_ids" {
-  description = "IDs of the public subnets"
-  value       = aws_subnet.public[*].id
-}
-
-output "private_subnet_ids" {
-  description = "IDs of the private subnets"
-  value       = aws_subnet.private[*].id
-}
-```
-
-### Module Usage
-
-Use modules in environment configurations:
-
-```hcl
-# environments/dev/main.tf
-module "vpc" {
-  source = "../../modules/networking/vpc"
-
-  name                 = "${var.project}-${var.environment}-vpc"
-  cidr_block           = var.vpc_cidr
-  public_subnet_cidrs  = var.public_subnet_cidrs
-  private_subnet_cidrs = var.private_subnet_cidrs
-  availability_zones   = var.availability_zones
-
-  tags = {
-    Environment = var.environment
-    Project     = var.project
-    ManagedBy   = "terraform"
-  }
+        this.registerOutputs({
+            vpcId: this.vpc.id,
+            publicSubnetIds: this.publicSubnets.map(s => s.id),
+            privateSubnetIds: this.privateSubnets.map(s => s.id),
+        });
+    }
 }
 ```
 
@@ -275,23 +383,12 @@ module "vpc" {
 
 ### Environment Variables
 
-Define variables in `environments/dev/variables.tf`:
+Define variables in `variables.tf`:
 
 ```hcl
 variable "project" {
   description = "Project name"
   type        = string
-}
-
-variable "environment" {
-  description = "Environment name"
-  type        = string
-}
-
-variable "region" {
-  description = "AWS region"
-  type        = string
-  default     = "us-east-1"
 }
 
 variable "vpc_cidr" {
@@ -315,21 +412,38 @@ variable "availability_zones" {
 }
 ```
 
-Set values in `environments/dev/terraform.tfvars`:
+Set common values in `envs/common.tfvars`:
 
 ```hcl
 project               = "customer-portal"
-environment           = "dev"
-region                = "us-east-1"
-vpc_cidr              = "10.0.0.0/16"
-public_subnet_cidrs   = ["10.0.1.0/24", "10.0.2.0/24"]
-private_subnet_cidrs  = ["10.0.3.0/24", "10.0.4.0/24"]
 availability_zones    = ["us-east-1a", "us-east-1b"]
 ```
 
-### Environment Outputs
+Set environment-specific values in environment files:
 
-Define outputs in `environments/dev/outputs.tf`:
+```hcl
+# envs/dev.tfvars
+vpc_cidr              = "10.0.0.0/16"
+public_subnet_cidrs   = ["10.0.1.0/24", "10.0.2.0/24"]
+private_subnet_cidrs  = ["10.0.3.0/24", "10.0.4.0/24"]
+```
+
+```hcl
+# envs/prod.tfvars
+vpc_cidr              = "10.1.0.0/16"
+public_subnet_cidrs   = ["10.1.1.0/24", "10.1.2.0/24"]
+private_subnet_cidrs  = ["10.1.3.0/24", "10.1.4.0/24"]
+```
+
+Apply with both common and environment-specific variables:
+
+```bash
+terraform apply -var-file=envs/common.tfvars -var-file=envs/dev.tfvars
+```
+
+### Outputs
+
+Define outputs in `outputs.tf`:
 
 ```hcl
 output "vpc_id" {
@@ -384,20 +498,17 @@ terraform state rm aws_vpc.main
 terraform import aws_vpc.main vpc-12345678
 ```
 
-### Managing Workspaces
+### Managing Pulumi State
 
 ```bash
-# List workspaces
-terraform workspace list
+# View the current stack state
+pulumi stack
 
-# Create a new workspace
-terraform workspace new dev
+# View a specific resource
+pulumi stack output vpc
 
-# Select a workspace
-terraform workspace select dev
-
-# Delete a workspace
-terraform workspace delete dev
+# Import an existing resource
+pulumi import aws:ec2/vpc:Vpc main vpc-12345678
 ```
 
 ## Deployment Process
@@ -411,14 +522,18 @@ terraform workspace delete dev
 
 2. **Make changes to infrastructure code**:
    ```bash
-   # Edit Terraform files
+   # Edit Terraform/Pulumi files
    ```
 
 3. **Test changes locally**:
    ```bash
+   # For Terraform
    terraform validate
    terraform fmt
-   terraform plan -var-file=terraform.tfvars
+   terraform plan -var-file=envs/common.tfvars -var-file=envs/dev.tfvars
+   
+   # For Pulumi
+   pulumi preview
    ```
 
 4. **Commit changes**:
@@ -434,8 +549,13 @@ terraform workspace delete dev
 
 6. **Apply changes in development environment**:
    ```bash
-   # After PR is approved and merged
-   terraform apply -var-file=terraform.tfvars
+   # For Terraform
+   terraform workspace select dev
+   terraform apply -var-file=envs/common.tfvars -var-file=envs/dev.tfvars
+   
+   # For Pulumi
+   pulumi stack select dev
+   pulumi up
    ```
 
 7. **Promote to production**:
@@ -447,7 +567,7 @@ terraform workspace delete dev
 Integration with GitHub Actions:
 
 ```yaml
-name: Terraform
+name: Infrastructure CI/CD
 
 on:
   pull_request:
@@ -460,22 +580,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.7.5
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
       
       - name: Terraform Format
         run: terraform fmt -check -recursive
       
       - name: Terraform Init
-        run: |
-          cd environments/dev
-          terraform init -backend=false
+        run: terraform init -backend=false
       
       - name: Terraform Validate
-        run: |
-          cd environments/dev
-          terraform validate
+        run: terraform validate
 
   plan:
     if: github.event_name == 'pull_request'
@@ -483,9 +599,9 @@ jobs:
     needs: validate
     steps:
       - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.7.5
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
       
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -494,17 +610,34 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
       
+      # Determine environment from branch
+      - name: Set environment
+        id: set-env
+        run: |
+          if [[ "${{ github.base_ref }}" == "main" ]]; then
+            echo "env=prod" >> $GITHUB_OUTPUT
+          else
+            echo "env=dev" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Terraform Init
+        run: terraform init
+        
+      - name: Select Workspace
+        run: terraform workspace select ${{ steps.set-env.outputs.env }} || terraform workspace new ${{ steps.set-env.outputs.env }}
+      
       - name: Terraform Plan
         run: |
-          cd environments/dev
-          terraform init
-          terraform plan -var-file=terraform.tfvars -out=tfplan
+          terraform plan \
+            -var-file=envs/common.tfvars \
+            -var-file=envs/${{ steps.set-env.outputs.env }}.tfvars \
+            -out=tfplan
       
       - name: Upload Plan
         uses: actions/upload-artifact@v4
         with:
           name: tfplan
-          path: environments/dev/tfplan
+          path: tfplan
 
   apply:
     if: github.event_name == 'push'
@@ -512,9 +645,9 @@ jobs:
     needs: validate
     steps:
       - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.7.5
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
       
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -523,11 +656,109 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
       
+      # Determine environment from branch
+      - name: Set environment
+        id: set-env
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "env=prod" >> $GITHUB_OUTPUT
+          else
+            echo "env=dev" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Terraform Init
+        run: terraform init
+        
+      - name: Select Workspace
+        run: terraform workspace select ${{ steps.set-env.outputs.env }} || terraform workspace new ${{ steps.set-env.outputs.env }}
+      
       - name: Terraform Apply
         run: |
-          cd environments/${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
-          terraform init
-          terraform apply -auto-approve -var-file=terraform.tfvars
+          terraform apply \
+            -var-file=envs/common.tfvars \
+            -var-file=envs/${{ steps.set-env.outputs.env }}.tfvars \
+            -auto-approve
+```
+
+For Pulumi:
+
+```yaml
+name: Pulumi CI/CD
+
+on:
+  pull_request:
+    branches: [development, main]
+  push:
+    branches: [development, main]
+
+jobs:
+  preview:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      # Determine stack from branch
+      - name: Set stack
+        id: set-stack
+        run: |
+          if [[ "${{ github.base_ref }}" == "main" ]]; then
+            echo "stack=prod" >> $GITHUB_OUTPUT
+          else
+            echo "stack=dev" >> $GITHUB_OUTPUT
+          fi
+      
+      - uses: pulumi/actions@v4
+        with:
+          command: preview
+          stack-name: ${{ steps.set-stack.outputs.stack }}
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+
+  update:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      # Determine stack from branch
+      - name: Set stack
+        id: set-stack
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "stack=prod" >> $GITHUB_OUTPUT
+          else
+            echo "stack=dev" >> $GITHUB_OUTPUT
+          fi
+      
+      - uses: pulumi/actions@v4
+        with:
+          command: up
+          stack-name: ${{ steps.set-stack.outputs.stack }}
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
 ```
 
 ## Documentation
@@ -608,7 +839,7 @@ module "vpc" {
 
 ```hcl
 data "aws_secretsmanager_secret" "db_password" {
-  name = "/${var.project}/${var.environment}/db/password"
+  name = "/${var.project}/${terraform.workspace}/db/password"
 }
 
 data "aws_secretsmanager_secret_version" "db_password" {
@@ -628,7 +859,7 @@ Follow the principle of least privilege:
 
 ```hcl
 resource "aws_iam_policy" "lambda_policy" {
-  name        = "${var.project}-${var.environment}-lambda-policy"
+  name        = "${var.project}-${terraform.workspace}-lambda-policy"
   description = "Policy for Lambda function"
 
   policy = jsonencode({
@@ -652,45 +883,6 @@ resource "aws_iam_policy" "lambda_policy" {
       }
     ]
   })
-}
-```
-
-### Network Security
-
-Implement proper security groups:
-
-```hcl
-resource "aws_security_group" "web" {
-  name        = "${var.project}-${var.environment}-web-sg"
-  description = "Security group for web servers"
-  vpc_id      = module.vpc.vpc_id
-
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name        = "${var.project}-${var.environment}-web-sg"
-    Environment = var.environment
-    Project     = var.project
-  }
 }
 ```
 
@@ -741,26 +933,36 @@ Error: Error loading state
 terraform init -reconfigure
 ```
 
-#### Error: The plan would destroy resources
-
-```
-Error: The plan would destroy X resource(s).
-```
-
-**Solution**:
-```bash
-# Review the plan carefully
-terraform plan -out=tfplan
-
-# If you're sure the changes are intended
-terraform apply tfplan
-```
-
 ## Version Management
 
-Terraform version updates are handled as follows:
-- We maintain compatibility with the latest stable Terraform release (currently 1.7.x)
-- New projects should always use the current standardized version
-- Existing projects should update to new Terraform versions within 3 months of their release
-- All Terraform version upgrades require thorough testing of the infrastructure code
-- We follow HashiCorp's release schedule to plan our upgrades
+Infrastructure code version management best practices:
+
+1. **Pin Provider Versions**: Always specify exact provider versions in `versions.tf`:
+   ```hcl
+   terraform {
+     required_providers {
+       aws = {
+         source  = "hashicorp/aws"
+         version = "= 5.11.0"
+       }
+     }
+     required_version = "= 1.7.0"
+   }
+   ```
+
+2. **Lock Files**: Commit `.terraform.lock.hcl` files to git to ensure consistent provider versions across the team
+
+3. **Versioned Releases**: Tag infrastructure repositories with semantic version numbers after significant changes
+
+4. **Upgrade Process**:
+   - Plan upgrades in advance
+   - Test in lower environments first
+   - Document any breaking changes
+   - Maintain a changelog
+
+5. **Update Schedule**:
+   - Review provider updates monthly
+   - Apply security patches immediately
+   - Plan major version upgrades quarterly
+
+By following these practices, you'll maintain a consistent, reliable infrastructure codebase that evolves with your needs while minimizing disruption.
