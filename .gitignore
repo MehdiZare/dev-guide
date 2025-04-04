@@ -11,3 +11,4 @@ yarn-error.log*
 .vscode/*
 /.idea/dev-guidance.iml
 /.idea/modules.xml
+/.idea/
