@@ -9,8 +9,8 @@ This guide outlines our organization's standards for Express.js development, foc
 ```bash
 # 1. Set up Node.js environment
 brew install nvm
-nvm install 18
-nvm use 18
+nvm install 20
+nvm use 20
 
 # 2. Clone repository
 git clone git@github.com:organization/project-name-service.git
@@ -42,10 +42,10 @@ echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> ~/.bashrc
 echo '[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"' >> ~/.bashrc
 
 # Install Node.js version
-nvm install 18
+nvm install 20
 
 # Set as default version
-nvm alias default 18
+nvm alias default 20
 ```
 
 ### Project Initialization
@@ -120,7 +120,7 @@ express-api/
 ```json
 {
   "compilerOptions": {
-    "target": "es2020",
+    "target": "es2022",
     "module": "commonjs",
     "outDir": "./dist",
     "rootDir": "./src",
@@ -828,3 +828,12 @@ setupSwagger(app);
 
 export default app;
 ```
+
+## Version Management
+
+Node.js version updates are handled as follows:
+- We maintain compatibility with the current Node.js LTS version (currently 20.x)
+- New projects should always use the current standardized version
+- Existing projects should update to new Node.js LTS versions within 6 months of their release
+- All Node.js version upgrades require thorough testing of the application
+- We follow the Node.js release schedule to plan our upgrades

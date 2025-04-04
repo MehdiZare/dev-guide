@@ -9,8 +9,8 @@ This guide outlines our organization's standards for infrastructure management u
 ```bash
 # 1. Install Terraform
 brew install tfenv
-tfenv install 1.5.5
-tfenv use 1.5.5
+tfenv install 1.7.5
+tfenv use 1.7.5
 
 # 2. Clone infrastructure repository
 git clone git@github.com:organization/infrastructure.git
@@ -40,10 +40,10 @@ We use `tfenv` to manage Terraform versions:
 brew install tfenv
 
 # Install Terraform version
-tfenv install 1.5.5
+tfenv install 1.7.5
 
 # Set as default version
-tfenv use 1.5.5
+tfenv use 1.7.5
 ```
 
 ### AWS CLI Configuration
@@ -125,8 +125,7 @@ Use DynamoDB for state locking:
 # Create the DynamoDB table for state locking
 resource "aws_dynamodb_table" "terraform_state_lock" {
   name           = "terraform-state-lock"
-  read_capacity  = 5
-  write_capacity = 5
+  billing_mode   = "PAY_PER_REQUEST"
   hash_key       = "LockID"
 
   attribute {
@@ -430,8 +429,8 @@ terraform workspace delete dev
    ```
 
 5. **Create a pull request**:
-    - Create a PR to merge into `development` branch
-    - Wait for code review and CI checks to pass
+   - Create a PR to merge into `development` branch
+   - Wait for code review and CI checks to pass
 
 6. **Apply changes in development environment**:
    ```bash
@@ -440,8 +439,8 @@ terraform workspace delete dev
    ```
 
 7. **Promote to production**:
-    - Create a PR from `development` to `main`
-    - After approval, apply changes to production
+   - Create a PR from `development` to `main`
+   - After approval, apply changes to production
 
 ### CI/CD Integration
 
@@ -460,10 +459,10 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: hashicorp/setup-terraform@v2
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.5.5
+          terraform_version: 1.7.5
       
       - name: Terraform Format
         run: terraform fmt -check -recursive
@@ -483,13 +482,13 @@ jobs:
     runs-on: ubuntu-latest
     needs: validate
     steps:
-      - uses: actions/checkout@v3
-      - uses: hashicorp/setup-terraform@v2
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.5.5
+          terraform_version: 1.7.5
       
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -502,7 +501,7 @@ jobs:
           terraform plan -var-file=terraform.tfvars -out=tfplan
       
       - name: Upload Plan
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: tfplan
           path: environments/dev/tfplan
@@ -512,13 +511,13 @@ jobs:
     runs-on: ubuntu-latest
     needs: validate
     steps:
-      - uses: actions/checkout@v3
-      - uses: hashicorp/setup-terraform@v2
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.5.5
+          terraform_version: 1.7.5
       
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -756,3 +755,12 @@ terraform plan -out=tfplan
 # If you're sure the changes are intended
 terraform apply tfplan
 ```
+
+## Version Management
+
+Terraform version updates are handled as follows:
+- We maintain compatibility with the latest stable Terraform release (currently 1.7.x)
+- New projects should always use the current standardized version
+- Existing projects should update to new Terraform versions within 3 months of their release
+- All Terraform version upgrades require thorough testing of the infrastructure code
+- We follow HashiCorp's release schedule to plan our upgrades

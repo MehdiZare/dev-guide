@@ -47,71 +47,71 @@ Create `.github/workflows/ci.yml`:
 name: CI
 
 on:
-  pull_request:
-    branches: [development, main]
-  push:
-    branches: [development, main]
+   pull_request:
+      branches: [development, main]
+   push:
+      branches: [development, main]
 
 jobs:
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-      
-      - name: Install Poetry
-        run: |
-          curl -sSL https://install.python-poetry.org | python3 -
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-      
-      - name: Install dependencies
-        run: |
-          poetry install
-      
-      - name: Run linters
-        run: |
-          poetry run black --check .
-          poetry run isort --check-only --profile black .
-          poetry run flake8 .
-          poetry run mypy .
-  
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    needs: lint
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-      
-      - name: Install Poetry
-        run: |
-          curl -sSL https://install.python-poetry.org | python3 -
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-      
-      - name: Install dependencies
-        run: |
-          poetry install
-      
-      - name: Run tests
-        run: |
-          poetry run pytest --cov=app --cov-report=xml
-      
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          file: ./coverage.xml
-          fail_ci_if_error: true
+   lint:
+      name: Lint
+      runs-on: ubuntu-latest
+      steps:
+         - uses: actions/checkout@v4
+
+         - name: Set up Python
+           uses: actions/setup-python@v5
+           with:
+              python-version: '3.12'
+              cache: 'pip'
+
+         - name: Install Poetry
+           run: |
+              curl -sSL https://install.python-poetry.org | python3 -
+              echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+         - name: Install dependencies
+           run: |
+              poetry install
+
+         - name: Run linters
+           run: |
+              poetry run black --check .
+              poetry run isort --check-only --profile black .
+              poetry run flake8 .
+              poetry run mypy .
+
+   test:
+      name: Test
+      runs-on: ubuntu-latest
+      needs: lint
+      steps:
+         - uses: actions/checkout@v4
+
+         - name: Set up Python
+           uses: actions/setup-python@v5
+           with:
+              python-version: '3.12'
+              cache: 'pip'
+
+         - name: Install Poetry
+           run: |
+              curl -sSL https://install.python-poetry.org | python3 -
+              echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+         - name: Install dependencies
+           run: |
+              poetry install
+
+         - name: Run tests
+           run: |
+              poetry run pytest --cov=app --cov-report=xml
+
+         - name: Upload coverage to Codecov
+           uses: codecov/codecov-action@v4
+           with:
+              file: ./coverage.xml
+              fail_ci_if_error: true
 ```
 
 ### Next.js Projects
@@ -132,12 +132,12 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
       
       - name: Install dependencies
@@ -152,12 +152,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: lint
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
       
       - name: Install dependencies
@@ -188,12 +188,12 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
       
       - name: Install dependencies
@@ -208,12 +208,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: lint
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
       
       - name: Install dependencies
@@ -246,7 +246,7 @@ jobs:
     name: Deploy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Set environment variables
         run: |
@@ -259,7 +259,7 @@ jobs:
           fi
       
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -267,7 +267,7 @@ jobs:
       
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
+        uses: aws-actions/amazon-ecr-login@v2
       
       - name: Build, tag, and push image to Amazon ECR
         id: build-image
@@ -281,9 +281,9 @@ jobs:
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
       
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
+        uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.5.5
+          terraform_version: 1.7.5
       
       - name: Terraform Init
         run: |
@@ -324,7 +324,7 @@ jobs:
     name: Deploy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Set environment
         run: |
@@ -335,9 +335,9 @@ jobs:
           fi
       
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
       
       - name: Install dependencies
@@ -347,7 +347,7 @@ jobs:
         run: npm run build
       
       - name: Deploy to Vercel
-        uses: amondnet/vercel-action@v20
+        uses: amondnet/vercel-action@v25
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
@@ -384,7 +384,7 @@ jobs:
     name: Deploy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Set environment variables
         run: |
@@ -397,7 +397,7 @@ jobs:
           fi
       
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -405,7 +405,7 @@ jobs:
       
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
+        uses: aws-actions/amazon-ecr-login@v2
       
       - name: Build, tag, and push image to Amazon ECR
         id: build-image
@@ -464,24 +464,24 @@ Set up the following secrets in your GitHub repository:
 ### Incremental Deployment
 
 1. **Development Environment**:
-    - Automatically deployed on every merge to `development`
-    - Used for testing new features and bug fixes
+   - Automatically deployed on every merge to `development`
+   - Used for testing new features and bug fixes
 
 2. **Staging Environment**:
-    - Deployed after QA approval in development
-    - Mirrors production environment for final testing
+   - Deployed after QA approval in development
+   - Mirrors production environment for final testing
 
 3. **Production Environment**:
-    - Deployed after approval and merge to `main`
-    - Requires manual approval for critical changes
+   - Deployed after approval and merge to `main`
+   - Requires manual approval for critical changes
 
 ### Environment Variables
 
 Store environment-specific variables as GitHub repository secrets:
 
 1. Create environment variables in GitHub:
-    - Go to repository settings > "Secrets and variables" > "Actions"
-    - Add new repository secrets
+   - Go to repository settings > "Secrets and variables" > "Actions"
+   - Add new repository secrets
 
 2. Reference in workflows:
    ```yaml
@@ -508,16 +508,16 @@ Cache dependencies to speed up builds:
 ### Code Quality Checks
 
 1. **Linting**:
-    - Run linters to enforce code style
-    - Fail the build on linting errors
+   - Run linters to enforce code style
+   - Fail the build on linting errors
 
 2. **Testing**:
-    - Run unit tests for all code changes
-    - Run integration tests for API changes
+   - Run unit tests for all code changes
+   - Run integration tests for API changes
 
 3. **Code Coverage**:
-    - Set minimum code coverage requirements
-    - Upload coverage reports to Codecov or SonarQube
+   - Set minimum code coverage requirements
+   - Upload coverage reports to Codecov or SonarQube
 
 ### Security Scanning
 
@@ -542,16 +542,16 @@ Cache dependencies to speed up builds:
 ### Deployment Strategies
 
 1. **Blue-Green Deployment**:
-    - Deploy new version alongside old version
-    - Switch traffic after validation
+   - Deploy new version alongside old version
+   - Switch traffic after validation
 
 2. **Canary Deployment**:
-    - Gradually roll out to a small percentage of users
-    - Increase percentage as confidence grows
+   - Gradually roll out to a small percentage of users
+   - Increase percentage as confidence grows
 
 3. **Feature Flags**:
-    - Deploy features behind toggles
-    - Control feature availability without redeployment
+   - Deploy features behind toggles
+   - Control feature availability without redeployment
 
 ### Rollback Procedures
 
@@ -564,8 +564,8 @@ Cache dependencies to speed up builds:
    ```
 
 2. **Manual Rollback**:
-    - Provide clear instructions for manual rollback
-    - Train team members on rollback procedures
+   - Provide clear instructions for manual rollback
+   - Train team members on rollback procedures
 
 ## Monitoring Deployments
 
@@ -595,35 +595,43 @@ Cache dependencies to speed up builds:
 ### Common CI Issues
 
 1. **Build Failures**:
-    - Check dependency issues
-    - Verify environment configuration
-    - Review test failures
+   - Check dependency issues
+   - Verify environment configuration
+   - Review test failures
 
 2. **Timeout Issues**:
-    - Optimize build steps
-    - Use caching for dependencies
+   - Optimize build steps
+   - Use caching for dependencies
 
 3. **Permission Issues**:
-    - Check GitHub token permissions
-    - Verify AWS IAM permissions
+   - Check GitHub token permissions
+   - Verify AWS IAM permissions
 
 ### Common CD Issues
 
 1. **Deployment Failures**:
-    - Check environment variables
-    - Verify infrastructure state
-    - Review application logs
+   - Check environment variables
+   - Verify infrastructure state
+   - Review application logs
 
 2. **Configuration Issues**:
-    - Ensure environment-specific configuration is correct
-    - Check secret management
+   - Ensure environment-specific configuration is correct
+   - Check secret management
 
 3. **Rollback Failures**:
-    - Test rollback procedures regularly
-    - Document rollback steps
+   - Test rollback procedures regularly
+   - Document rollback steps
 
 ## Resources
 
 - [GitHub Actions Documentation](https://docs.github.com/en/actions)
 - [AWS ECS Deployment Guide](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/deployment-type-external.html)
 - [Vercel Deployment Documentation](https://vercel.com/docs/concepts/deployments/overview)
+
+## Version Management
+
+GitHub Actions version updates are handled as follows:
+- We maintain compatibility with the latest stable GitHub Actions releases
+- New projects should always use the current standardized versions
+- Existing projects should update to new GitHub Actions versions within 3 months of their release
+- We regularly check for available updates to GitHub Actions

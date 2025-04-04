@@ -9,8 +9,8 @@ This guide outlines our organization's standards for Next.js development, focusi
 ```bash
 # 1. Set up Node.js environment
 brew install nvm
-nvm install 18
-nvm use 18
+nvm install 20
+nvm use 20
 
 # 2. Clone repository
 git clone git@github.com:organization/project-name-frontend.git
@@ -42,10 +42,10 @@ echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> ~/.bashrc
 echo '[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"' >> ~/.bashrc
 
 # Install Node.js version
-nvm install 18
+nvm install 20
 
 # Set as default version
-nvm alias default 18
+nvm alias default 20
 ```
 
 ### Project Initialization
@@ -492,3 +492,57 @@ Configure Vercel with a `vercel.json` file:
   }
 }
 ```
+
+## Accessibility
+
+Follow these accessibility best practices:
+
+1. **Semantic HTML**: Use proper semantic HTML elements like `<nav>`, `<main>`, `<section>`, `<article>`, etc.
+
+2. **ARIA attributes**: Add ARIA roles and properties when necessary to enhance accessibility.
+
+3. **Keyboard navigation**: Ensure all interactive elements are accessible via keyboard.
+
+4. **Color contrast**: Maintain a minimum contrast ratio of 4.5:1 for normal text and 3:1 for large text.
+
+5. **Focus management**: Provide visible focus indicators and maintain a logical tab order.
+
+Example accessible component:
+
+```tsx
+// src/components/Button/Button.tsx
+import { ButtonHTMLAttributes, forwardRef } from 'react';
+import styles from './Button.module.css';
+
+interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: 'primary' | 'secondary';
+  size?: 'small' | 'medium' | 'large';
+}
+
+const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ children, variant = 'primary', size = 'medium', className, ...props }, ref) => {
+    return (
+      <button
+        ref={ref}
+        className={`${styles.button} ${styles[variant]} ${styles[size]} ${className}`}
+        {...props}
+      >
+        {children}
+      </button>
+    );
+  }
+);
+
+Button.displayName = 'Button';
+
+export default Button;
+```
+
+## Version Management
+
+Node.js version updates are handled as follows:
+- We maintain compatibility with the current Node.js LTS version (currently 20.x)
+- New projects should always use the current standardized version
+- Existing projects should update to new Node.js LTS versions within 6 months of their release
+- All Node.js version upgrades require thorough testing of the application
+- We follow the Node.js release schedule to plan our upgrades

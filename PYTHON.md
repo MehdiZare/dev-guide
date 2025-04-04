@@ -9,8 +9,8 @@ This guide outlines our organization's standards for Python development, focusin
 ```bash
 # 1. Set up Python environment
 brew install pyenv poetry
-pyenv install 3.11.0
-pyenv global 3.11.0
+pyenv install 3.12.0
+pyenv global 3.12.0
 
 # 2. Clone repository
 git clone git@github.com:organization/project-name-api.git
@@ -43,10 +43,10 @@ echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.
 echo 'eval "$(pyenv init -)"' >> ~/.bashrc
 
 # Install Python version
-pyenv install 3.11.0
+pyenv install 3.12.0
 
 # Set as global version
-pyenv global 3.11.0
+pyenv global 3.12.0
 ```
 
 ### Dependency Management
@@ -121,7 +121,7 @@ repos:
   rev: 23.3.0
   hooks:
   - id: black
-    language_version: python3.11
+    language_version: python3.12
 
 - repo: https://github.com/pycqa/isort
   rev: 5.12.0
@@ -162,22 +162,22 @@ description = "Project description"
 authors = ["Your Name <your.email@example.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.11"
-fastapi = "^0.100.0"
+python = "^3.12"
+fastapi = "^0.104.0"
 uvicorn = {extras = ["standard"], version = "^0.23.0"}
-pydantic = "^2.0.3"
-pydantic-settings = "^2.0.2"
-sqlalchemy = "^2.0.19"
-alembic = "^1.11.1"
+pydantic = "^2.4.2"
+pydantic-settings = "^2.0.3"
+sqlalchemy = "^2.0.23"
+alembic = "^1.12.0"
 python-dotenv = "^1.0.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.4.0"
-black = "^23.7.0"
+black = "^23.10.0"
 isort = "^5.12.0"
-flake8 = "^6.0.0"
-mypy = "^1.4.1"
-pre-commit = "^3.3.3"
+flake8 = "^6.1.0"
+mypy = "^1.6.1"
+pre-commit = "^3.5.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -185,14 +185,14 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.black]
 line-length = 88
-target-version = ["py311"]
+target-version = ["py312"]
 
 [tool.isort]
 profile = "black"
 line_length = 88
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 check_untyped_defs = true
@@ -429,3 +429,11 @@ class Settings(BaseSettings):
 
 settings = Settings()
 ```
+
+## Version Management
+
+Python version updates are handled as follows:
+- We maintain compatibility with the latest stable Python release (currently 3.12)
+- New projects should always use the current standardized version
+- Existing projects should update to new Python versions within 6 months of their release
+- Major version upgrades (e.g., 3.x to 3.y) require team-wide coordination and testing
