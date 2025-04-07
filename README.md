@@ -38,9 +38,9 @@ New team members should:
 ### Setting Up a New Project
 
 1. Use the appropriate project template for your technology stack:
-    - [Python/FastAPI template](https://github.com/organization/fastapi-template)
-    - [Next.js template](https://github.com/organization/nextjs-template)
-    - [Express template](https://github.com/organization/express-template)
+    - [Python/FastAPI template](https://github.com/fastapi/full-stack-fastapi-template)
+    - [Next.js template](https://github.com/ixartz/Next-js-Boilerplate)
+    - [Express template](https://github.com/edwinhern/express-typescript-2024)
 
 2. Set up CI/CD using the workflow examples in [CI/CD Pipeline Configuration](CI_CD.md):
     - Configure GitHub Actions for CI
